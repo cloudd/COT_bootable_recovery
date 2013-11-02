@@ -77,6 +77,11 @@ int main(int argc, char **argv) {
         return 2;
     }
 
+#ifdef BOARD_TARGET_IS_MTK
+    RSAPublicKey* key = &test_key;
+    ++argv;
+#endif
+
     int result = verify_file(argv[1], &test_key, 1);
     if (result == VERIFY_SUCCESS) {
         printf("SUCCESS\n");

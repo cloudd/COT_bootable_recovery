@@ -41,6 +41,11 @@
 
 #include "mmcutils.h"
 
+#ifdef BOARD_TARGET_IS_MTK
+	#define XSTR(x) #x
+	#define STR(x) XSTR(x)
+#endif
+
 unsigned ext3_count = 0;
 char *ext3_partitions[] = {"system", "userdata", "cache", "NONE"};
 
@@ -471,13 +476,19 @@ ERROR3:
 
 
 int
+#ifdef BOARD_TARGET_IS_MTK
+mmc_raw_dump_internal (const char* in_file, const char *out_file, unsigned sz) {
+#else
 mmc_raw_dump_internal (const char* in_file, const char *out_file) {
+#endif
     int ch;
     FILE *in;
     FILE *out;
     int val = 0;
     char buf[512];
+#ifndef BOARD_TARGET_IS_MTK
     unsigned sz = 0;
+#endif
     unsigned i;
     int ret = -1;
 
@@ -488,15 +499,24 @@ mmc_raw_dump_internal (const char* in_file, const char *out_file) {
     out = fopen ( out_file,  "w" );
     if (out == NULL)
         goto ERROR2;
-
-    fseek(in, 0L, SEEK_END);
-    sz = ftell(in);
-    fseek(in, 0L, SEEK_SET);
+	if(sz == 0) {
+		fseek(in, 0L, SEEK_END);
+		sz = ftell(in);
+		fseek(in, 0L, SEEK_SET);
+	}
 
     if (sz % 512)
     {
-        while ( ( ch = fgetc ( in ) ) != EOF )
+#ifdef BOARD_TARGET_IS_MTK
+		unsigned counter = 0;
+#endif
+        while ( ( ch = fgetc ( in ) ) != EOF ) {
             fputc ( ch, out );
+#ifdef BOARD_TARGET_IS_MTK
+			if(++counter == sz)
+				break;
+#endif
+		}
     }
     else
     {
@@ -523,7 +543,11 @@ ERROR3:
 // TODO: refactor this to not be a giant copy paste mess
 int
 mmc_raw_dump (const MmcPartition *partition, char *out_file) {
+#ifdef BOARD_TARGET_IS_MTK
+    return mmc_raw_dump_internal(partition->device_index, out_file, 0);
+#else
     return mmc_raw_dump_internal(partition->device_index, out_file);
+#endif
 }
 
 
@@ -594,7 +618,11 @@ int cmd_mmc_restore_raw_partition(const char *partition, const char *filename)
         return mmc_raw_copy(p, filename);
     }
     else {
+#ifdef BOARD_TARGET_IS_MTK
+		return mmc_raw_dump_internal(filename, partition, 0);
+#else
         return mmc_raw_dump_internal(filename, partition);
+#endif
     }
 }
 
@@ -609,7 +637,37 @@ int cmd_mmc_backup_raw_partition(const char *partition, const char *filename)
         return mmc_raw_dump(p, filename);
     }
     else {
+#ifdef BOARD_TARGET_IS_MTK
+		unsigned size = 0;
+#endif
+
+        // take boot and recovery partition sizes into account if defined
+#if defined(CWM_EMMC_BOOT_DEVICE_NAME) && defined(CWM_EMMC_BOOT_DEVICE_SIZE)
+        if (strcmp(partition, STR(CWM_EMMC_BOOT_DEVICE_NAME)) == 0) {
+            size = CWM_EMMC_BOOT_DEVICE_SIZE;
+            printf("CWM_EMMC_BOOT_DEVICE: %s; Size: 0x%x\n", partition, size);
+        }
+#endif
+
+#if defined(CWM_EMMC_RECOVERY_DEVICE_NAME) && defined(CWM_EMMC_RECOVERY_DEVICE_SIZE)
+        if (strcmp(partition, STR(CWM_EMMC_RECOVERY_DEVICE_NAME)) == 0) {
+            size = CWM_EMMC_RECOVERY_DEVICE_SIZE;
+            printf("CWM_EMMC_RECOVERY_DEVICE: %s; Size: 0x%x\n", partition, size);
+        }
+#endif
+
+#if defined(CWM_EMMC_UBOOT_DEVICE_NAME) && defined(CWM_EMMC_UBOOT_DEVICE_SIZE)
+        if (strcmp(partition, STR(CWM_EMMC_UBOOT_DEVICE_NAME)) == 0) {
+            size = CWM_EMMC_UBOOT_DEVICE_SIZE;
+            printf("CWM_EMMC_UBOOT_DEVICE: %s; Size: 0x%x\n", partition, size);
+        }
+#endif
+
+#ifdef BOARD_TARGET_IS_MTK
+        return mmc_raw_dump_internal(partition, filename, size);
+#else
         return mmc_raw_dump_internal(partition, filename);
+#endif
     }
 }
 

@@ -701,6 +701,9 @@ int control_usb_storage_for_lun(Volume* vol, bool enable) {
         "/sys/devices/platform/usb_mass_storage/lun%d/file",
         "/sys/class/android_usb/android0/f_mass_storage/lun/file",
         "/sys/class/android_usb/android0/f_mass_storage/lun_ex/file",
+#ifdef BOARD_TARGET_IS_MTK
+        "/sys/devices/platform/mt_usb/gadget/lun%d/file",
+#endif
         NULL
     };
 

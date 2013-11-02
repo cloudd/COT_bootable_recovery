@@ -66,6 +66,10 @@ ifneq ($(BOARD_NEEDS_RECOVERY_FIX),)
 endif
 endif
 
+ifeq ($(BOARD_TARGET_IS_MTK),)
+  LOCAL_CFLAGS += -DBOARD_TARGET_IS_MTK=true
+endif
+
 
 ifeq ($(BOARD_USE_CUSTOM_RECOVERY_FONT),)
   BOARD_USE_CUSTOM_RECOVERY_FONT := \"font_10x18.h\"
