@@ -44,6 +44,7 @@
 #include "adb_install.h"
 #include "minadbd/adb.h"
 
+#include "firmware.h"
 #include "extendedcommands.h"
 #include "flashutils/flashutils.h"
 #include "eraseandformat.h"
@@ -289,7 +290,6 @@ copy_log_file(const char* destination, int append) {
     }
 }
 
-
 // clear the recovery command and prepare to boot a (hopefully working) system,
 // copy our log file to cache as well (for the system to read), and
 // record any intent we were asked to communicate back to the system.
@@ -416,7 +416,8 @@ copy_sideloaded_package(const char* original_path) {
   return strdup(copy_path);
 }
 
-char** prepend_title(char** headers) {
+char**
+prepend_title(char** headers) {
     char* title[] = { EXPAND(RECOVERY_VERSION),
                       "",
                       NULL };
@@ -446,7 +447,8 @@ get_menu_selection(char** headers, char** items, int menu_only,
 
     int item_count = ui_start_menu(headers, items, initial_selection);
     int selected = initial_selection;
-    int chosen_item = -1;
+    int chosen_item = -1; // NO_ACTION
+    int wrap_count = 0;
 
     while (chosen_item < 0 && chosen_item != GO_BACK) {
         struct keyStruct *key;
@@ -462,8 +464,8 @@ get_menu_selection(char** headers, char** items, int menu_only,
 				return ITEM_REBOOT;
 			}
 		}
-		else if(key == -2) {
-			return GO_BACK;
+		else if (key == -2) {   // we are returning from ui_cancel_wait_key(): trigger a GO_BACK
+            return GO_BACK;
 		}
 
         int action;
@@ -502,6 +504,21 @@ get_menu_selection(char** headers, char** items, int menu_only,
             }
         } else if (!menu_only) {
             chosen_item = action;
+        }
+
+        if (abs(selected - old_selected) > 1) {
+            wrap_count++;
+            if (wrap_count == 5) {
+                wrap_count = 0;
+                if (ui_get_rainbow_mode()) {
+                    ui_set_rainbow_mode(0);
+                    ui_print("Rainbow mode disabled\n");
+                }
+                else {
+                    ui_set_rainbow_mode(1);
+                    ui_print("Rainbow mode enabled!\n");
+                }
+            }
         }
     }
 
@@ -641,50 +658,6 @@ update_directory(const char* path, const char* unmount_when_done) {
     return result;
 }
 
-static void
-wipe_data(int confirm) {
-    if (confirm) {
-        static char** title_headers = NULL;
-
-        if (title_headers == NULL) {
-            char* headers[] = { "Confirm wipe of all user data?",
-                                "  THIS CAN NOT BE UNDONE.",
-                                "",
-                                NULL };
-            title_headers = prepend_title((const char**)headers);
-        }
-
-        char* items[] = { " No",
-                          " No",
-                          " No",
-                          " No",
-                          " No",
-                          " No",
-                          " No",
-                          " Yes -- delete all user data",   // [7]
-                          " No",
-                          " No",
-                          " No",
-                          NULL };
-
-        int chosen_item = get_menu_selection(title_headers, items, 1, 0);
-        if (chosen_item != 7) {
-            return;
-        }
-    }
-
-    ui_print("\n-- Wiping data...\n");
-    device_wipe_data();
-    erase_volume("/data");
-    erase_volume("/cache");
-    if (has_datadata()) {
-        erase_volume("/datadata");
-    }
-    erase_volume("/sd-ext");
-    erase_volume("/sdcard/.android_secure");
-    ui_print("Data wipe complete.\n");
-}
-
 static void headless_wait() {
   ui_show_text(0);
   char** headers = prepend_title((const char**)MENU_HEADERS);
@@ -721,7 +694,7 @@ prompt_and_wait() {
         int status;
         switch (chosen_item) {
             case ITEM_REBOOT:
-                poweroff=0;
+                poweroff = 0;
                 return;
 
             case ITEM_WIPE_DATA:
@@ -1064,7 +1037,9 @@ setup_adbd() {
             check_and_fclose(file_src, key_src);
         }
     }
+    ignore_data_media_workaround(1);
     ensure_path_unmounted("/data");
+    ignore_data_media_workaround(0);
 
     // Trigger (re)start of adb daemon
     property_set("service.adb.root", "1");
@@ -1120,11 +1095,11 @@ main(int argc, char **argv) {
         }
         if (strstr(argv[0], "setprop"))
             return setprop_main(argc, argv);
+        if (strstr(argv[0], "getprop"))
+            return getprop_main(argc, argv);
         return busybox_driver(argc, argv);
     }
     __system("/sbin/postrecoveryboot.sh");
-    __system("mkdir -p /storage");
-    __system("ln -s /sdcard /storage/sdcard0");
 
     int is_user_initiated_recovery = 0;
     time_t start = time(NULL);
@@ -1132,7 +1107,7 @@ main(int argc, char **argv) {
     // If these fail, there's not really anywhere to complain...
     freopen(TEMPORARY_LOG_FILE, "a", stdout); setbuf(stdout, NULL);
     freopen(TEMPORARY_LOG_FILE, "a", stderr); setbuf(stderr, NULL);
-    printf("Starting recovery on %s", ctime(&start));
+    printf("Starting recovery on %s\n", ctime(&start));
 
     device_ui_init(&ui_parameters);
     load_volume_table();
@@ -1184,7 +1159,7 @@ main(int argc, char **argv) {
 
     if (!sehandle) {
         fprintf(stderr, "Warning: No file_contexts\n");
-        ui_print("Warning:  No file_contexts\n");
+        // ui_print("Warning:  No file_contexts\n");
     }
 
     LOGI("device_recovery_start()\n");
@@ -1222,21 +1197,15 @@ main(int argc, char **argv) {
         if (status != INSTALL_SUCCESS) ui_print("Installation aborted.\n");
     } else if (wipe_data) {
         if (device_wipe_data()) status = INSTALL_ERROR;
+        ignore_data_media_workaround(1);
         if (erase_volume("/data")) status = INSTALL_ERROR;
+        ignore_data_media_workaround(0);
         if (has_datadata() && erase_volume("/datadata")) status = INSTALL_ERROR;
         if (wipe_cache && erase_volume("/cache")) status = INSTALL_ERROR;
         if (status != INSTALL_SUCCESS) ui_print("Data wipe failed.\n");
     } else if (wipe_cache) {
         if (wipe_cache && erase_volume("/cache")) status = INSTALL_ERROR;
         if (status != INSTALL_SUCCESS) ui_print("Cache wipe failed.\n");
-    } else if (sideload) {
-        signature_check_enabled = 0;
-        if (!headless)
-          ui_set_show_text(1);
-        if (0 == apply_from_adb()) {
-            status = INSTALL_SUCCESS;
-            ui_set_show_text(0);
-        }
     } else {
         LOGI("Checking for extendedcommand...\n");
         status = INSTALL_ERROR;  // No command specified
@@ -1287,6 +1256,16 @@ main(int argc, char **argv) {
         }
     }
 
+    if (sideload) {
+        signature_check_enabled = 0;
+        if (!headless)
+            ui_set_show_text(1);
+        if (0 == apply_from_adb()) {
+            status = INSTALL_SUCCESS;
+            ui_set_show_text(0);
+        }
+    }
+    
     setup_adbd();
 
     if (headless) {

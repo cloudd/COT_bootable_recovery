@@ -82,7 +82,7 @@ int device_wipe_data();
 #define ITEM_NANDROID        4
 #define ITEM_PARTITION       5
 #define ITEM_ADVANCED        6
-#define ITEM_POWEROPTIONS        7
+#define ITEM_POWEROPTIONS    7
 
 // Header text to display above the main menu.
 extern char* MENU_HEADERS[];
@@ -106,11 +106,6 @@ extern int TOUCH_NOSHOW_LOG;
 extern int maxX;
 extern int maxY;
 extern int touchY;
-
-extern int BATT_LINE;
-extern int TIME_LINE;
-extern int BATT_POS;
-extern int BATT_LINE;
 
 int get_menu_icon_info(int indx1, int indx2);
 

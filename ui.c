@@ -56,7 +56,11 @@
 
 extern int __system(const char *command);
 
+#if defined(BOARD_HAS_NO_SELECT_BUTTON) || defined(BOARD_TOUCH_RECOVERY)
+static int gShowBackButton = 1;
+#else
 static int gShowBackButton = 0;
+#endif
 
 #define MAX_COLS 96
 #ifdef BOARD_TS_MAX_ROWS
@@ -148,6 +152,9 @@ static int show_menu = 0;
 static int menu_top = 0, menu_items = 0, menu_sel = 0;
 static int menu_show_start = 0;             // this is line which menu display is starting at
 static int max_menu_rows;
+
+static int cur_rainbow_color = 0;
+static int gRainbowMode = 0;
 
 // Key event input queue
 static pthread_mutex_t key_queue_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -293,6 +300,7 @@ static void draw_text_line(int row, const char* t, int align) {
 				col = gr_fb_width() - length - 1;
 				break;
 		}
+		if (ui_get_rainbow_mode()) ui_rainbow_mode();
 		gr_text(col, (row+1)*CHAR_HEIGHT-1, t);
 	}
 }
@@ -300,8 +308,6 @@ static void draw_text_line(int row, const char* t, int align) {
 //#define MENU_TEXT_COLOR 255, 0, 0, 255
 #define NORMAL_TEXT_COLOR 200, 200, 200, 255
 #define HEADER_TEXT_COLOR NORMAL_TEXT_COLOR
-
-int BATT_LINE, TIME_LINE, BATT_POS, TIME_POS;
 
 // Redraw everything on the screen.  Does not flip pages.
 // Should only be called with gUpdateMutex locked.
@@ -333,6 +339,7 @@ void draw_screen_locked(void)
 	        	gr_color(0, 0, 0, 160);
         		gr_fill(0, 0, gr_fb_width(), gr_fb_height());
 
+        		int total_rows = gr_fb_height() / CHAR_HEIGHT;
         		int i = 0;
         		int j = 0;
         		int row = 0;            // current row that we are drawing on
@@ -343,27 +350,6 @@ void draw_screen_locked(void)
 				draw_icon_locked(gMenuIcon[MENU_SELECT], MENU_ICON[MENU_SELECT].x, MENU_ICON[MENU_SELECT].y );
             			// Setup our text colors
             			gr_color(UICOLOR0, UICOLOR1, UICOLOR2, 255);
-            
-            			// Show battery level
-            			int batt_level = 0;
-            			batt_level = get_batt_stats();
-            			if(batt_level < 21) {
-					gr_color(255, 0, 0, 255);
-				}
-				char batt_text[40];
-				char time_gmt[40];
-			
-				// Get a usable time
-				struct tm *current;
-				time_t now;
-				now = time(0);
-				current = localtime(&now);
-				sprintf(batt_text, "[%d%%]", batt_level);
-				sprintf(time_gmt, "[%02D:%02D GMT]", current->tm_hour, current->tm_min);
-
-       			draw_text_line(BATT_LINE, batt_text, BATT_POS);
-       			draw_text_line(TIME_LINE, time_gmt, TIME_POS);
-
 				gr_color(UICOLOR0, UICOLOR1, UICOLOR2, 255);
 
             		gr_fill(0, (menu_top + menu_sel - menu_show_start) * CHAR_HEIGHT,
@@ -396,6 +382,8 @@ void draw_screen_locked(void)
                     			draw_text_line(i - menu_show_start, menu[i], LEFT_ALIGN);
                 		}
                 		row++;
+                		if (row >= max_menu_rows)
+		                    break;
             		}
             		gr_fill(0, row*CHAR_HEIGHT+CHAR_HEIGHT/2-1,
 #ifdef BUILD_IN_LANDSCAPE
@@ -407,7 +395,7 @@ void draw_screen_locked(void)
 
         	gr_color(NORMAL_TEXT_COLOR);
         	for (; row < text_rows; ++row) {
-        		draw_text_line(row, text[(row+text_top) % text_rows], LEFT_ALIGN);
+        		draw_text_line(row + 1, text[(row+text_top) % text_rows], LEFT_ALIGN);
         	}
     	}
 }
@@ -1113,7 +1101,7 @@ void ui_printlogtail(int nb_lines) {
 #define MENU_ITEM_HEADER " - "
 #define MENU_ITEM_HEADER_LENGTH strlen(MENU_ITEM_HEADER)
 
-int ui_start_menu(char** headers, char** items, int initial_selection) {
+int ui_start_menu(const char** headers, char** items, int initial_selection) {
     int i;
     pthread_mutex_lock(&gUpdateMutex);
     if (text_rows > 0 && text_cols > 0) {
@@ -1429,21 +1417,27 @@ void ui_increment_frame() {
         (gInstallingFrame + 1) % ui_parameters.installing_frames;
 }
 
-int get_batt_stats(void) {
-	static int level = -1;
-	
-	char value[4];
-	FILE * capacity = fopen("/sys/class/power_supply/battery/capacity","rt");
-	if (capacity) {
-		fgets(value, 4, capacity);
-		fclose(capacity);
-		level = atoi(value);
-		
-		if (level > 100)
-			level = 100;
-		if (level < 0)
-			level = 0;
-		
-	}
-	return level;
+int ui_get_rainbow_mode() {
+    return gRainbowMode;
+}
+
+void ui_rainbow_mode() {
+    static int colors[] = { 255, 0, 0,        // red
+                            255, 127, 0,      // orange
+                            255, 255, 0,      // yellow
+                            0, 255, 0,        // green
+                            60, 80, 255,      // blue
+                            143, 0, 255 };    // violet
+
+    gr_color(colors[cur_rainbow_color], colors[cur_rainbow_color+1], colors[cur_rainbow_color+2], 255);
+    cur_rainbow_color += 3;
+    if (cur_rainbow_color >= sizeof(colors)/sizeof(colors[0])) cur_rainbow_color = 0;
+}
+
+void ui_set_rainbow_mode(int rainbowMode) {
+    gRainbowMode = rainbowMode;
+
+    pthread_mutex_lock(&gUpdateMutex);
+    update_screen_locked();
+    pthread_mutex_unlock(&gUpdateMutex);
 }

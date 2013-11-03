@@ -218,9 +218,9 @@ void show_settings_menu() {
     list[0] = "Language";
     list[1] = "Theme";
     if (backupfmt == 0) {
-		list[2] = "Choose Backup Format (currently dup)";
-	} else {
 		list[2] = "Choose Backup Format (currently tar)";
+	} else {
+		list[2] = "Choose Backup Format (currently dup)";
 	}
     if (orsreboot == 1) {
 		list[3] = "Disable forced reboots";
@@ -253,9 +253,8 @@ void show_settings_menu() {
             case SETTINGS_ITEM_THEME:
             {
                 static char* ui_colors[] = {"Hydro (default)",
-                                                    "Blood Red",
-                                                    "Custom Theme (sdcard)",
-                                                    NULL
+											"Custom Theme (sdcard)",
+											 NULL
                 };
                 static char* ui_header[] = {"COT Theme", "", NULL};
 
@@ -269,10 +268,6 @@ void show_settings_menu() {
                             is_sd_theme = 0;
                             break;
                         case 1:
-                            currenttheme = "bloodred";
-							is_sd_theme = 0;
-                            break;
-                        case 2:
 							currenttheme = "custom";
 							is_sd_theme = 1;
 							break;
@@ -282,7 +277,7 @@ void show_settings_menu() {
             }
             case SETTINGS_CHOOSE_BACKUP_FMT:
             {
-				static char* cb_fmts[] = {"dup", "tar", NULL};
+				static char* cb_fmts[] = {"tar", "dup", NULL};
 				static char* cb_header[] = {"Choose Backup Format", "", NULL};
 				
 				int cb_fmt = get_menu_selection(cb_header, cb_fmts, 0, 0);
@@ -292,15 +287,15 @@ void show_settings_menu() {
 					switch(cb_fmt) {
 						case 0:
 							backupfmt = 0;
-							ui_print("Backup format set to dedupe.\n");
-							nandroid_switch_backup_handler(0);
-							list[2] = "Choose Backup Format (currently dup)";
-							break;
-						case 1:
-							backupfmt = 1;
 							ui_print("Backup format set to tar.\n");
 							nandroid_switch_backup_handler(1);
 							list[2] = "Choose Backup Format (currently tar)";
+							break;
+						case 1:
+							backupfmt = 1;
+							ui_print("Backup format set to dedupe.\n");
+							nandroid_switch_backup_handler(0);
+							list[2] = "Choose Backup Format (currently dup)";
 							break;
 					}
 					break;
