@@ -337,6 +337,7 @@ void draw_screen_locked(void)
 	        	gr_color(0, 0, 0, 160);
         		gr_fill(0, 0, gr_fb_width(), gr_fb_height());
 
+        		int total_rows = gr_fb_height() / CHAR_HEIGHT;
         		int i = 0;
         		int j = 0;
         		int row = 0;            // current row that we are drawing on
@@ -400,6 +401,8 @@ void draw_screen_locked(void)
                     			draw_text_line(i - menu_show_start, menu[i], LEFT_ALIGN);
                 		}
                 		row++;
+                		if (row >= max_menu_rows)
+		                    break;
             		}
             		gr_fill(0, row*CHAR_HEIGHT+CHAR_HEIGHT/2-1,
 #ifdef BUILD_IN_LANDSCAPE
@@ -411,7 +414,7 @@ void draw_screen_locked(void)
 
         	gr_color(NORMAL_TEXT_COLOR);
         	for (; row < text_rows; ++row) {
-        		draw_text_line(row, text[(row+text_top) % text_rows], LEFT_ALIGN);
+        		draw_text_line(row + 1, text[(row+text_top) % text_rows], LEFT_ALIGN);
         	}
     	}
 }
