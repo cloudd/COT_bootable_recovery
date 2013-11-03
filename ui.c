@@ -56,7 +56,11 @@
 
 extern int __system(const char *command);
 
+#if defined(BOARD_HAS_NO_SELECT_BUTTON) || defined(BOARD_TOUCH_RECOVERY)
+static int gShowBackButton = 1;
+#else
 static int gShowBackButton = 0;
+#endif
 
 #define MAX_COLS 96
 #ifdef BOARD_TS_MAX_ROWS

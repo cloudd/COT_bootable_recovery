@@ -106,6 +106,10 @@ int device_wipe_data() {
     return 0;
 }
 
+int ui_should_log_stdout() {
+    return 0;
+}
+
 int get_menu_icon_info(int indx1, int indx2) {
 //ToDo: Following switch case should be replaced by array or structure
 
