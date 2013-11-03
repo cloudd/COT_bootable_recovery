@@ -66,7 +66,7 @@ ifneq ($(BOARD_NEEDS_RECOVERY_FIX),)
 endif
 endif
 
-ifneq ($(BOARD_TARGET_IS_MTK),)
+ifeq ($(BOARD_TARGET_IS_MTK),)
   LOCAL_CFLAGS += -DBOARD_TARGET_IS_MTK=true
 endif
 
