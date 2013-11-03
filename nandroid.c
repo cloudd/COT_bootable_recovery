@@ -436,11 +436,6 @@ int nandroid_backup(const char* backup_path)
     if (0 != (ret = nandroid_backup_partition(backup_path, "/boot")))
         return ret;
 
-#ifdef BOARD_TARGET_IS_MTK
-    if (0 != (ret = nandroid_backup_partition(backup_path, "/uboot")))
-        return ret;
-#endif
-
     if (0 != (ret = nandroid_backup_partition(backup_path, "/recovery")))
         return ret;
 
@@ -831,16 +826,9 @@ int nandroid_restore(const char* backup_path, int restore_boot, int restore_syst
 	sprintf(tmp, "%s/boot.img", backup_path);
 	
 	if (restore_boot && (stat(tmp, &st) == 0)) {
-		if (NULL != volume_for_path("/boot") && 0 != (ret = nandroid_restore_partition(backup_path, "/boot")))
+		if (NULL != volume_for_path("/boot") && 0 != (ret = nandroid_restore_partition(backup_path, "/boot"))) {
 			return ret;
-
-#ifdef BOARD_TARGET_IS_MTK
-        if (NULL != volume_for_path("/uboot") && 0 != (ret = nandroid_restore_partition(backup_path, "/uboot")))
-            return ret;
-
-        if (NULL != volume_for_path("/recovery") && 0 != (ret = nandroid_restore_partition(backup_path, "/recovery")))
-            return ret;
-#endif
+		}
 	} else {
 		ui_print("No boot image present, skipping...\n");
 	}
